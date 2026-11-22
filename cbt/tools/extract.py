@@ -302,11 +302,28 @@ def parse_page(pno):
                     l['x1'] = min(l['x1'], f[0])
         if not l['text']:
             continue
-        l['box'] = None
-        for bi, b in enumerate(boxes):
-            if b['kind'] == 'box' and inside((l['x0'] + 1, l['cy']), b['bb'], 1) and inside((l['x1'] - 1, l['cy']), b['bb'], 1):
-                l['box'] = '%d_%d' % (pno, bi); l['box_bb'] = b['bb']
-        keep.append(l)
+        # split a line that starts outside a box (e.g. a choice marker) and continues inside it
+        parts = [l]
+        for b in boxes:
+            bb = b['bb']
+            if b['kind'] == 'box' and bb[1] - 1 <= l['cy'] <= bb[3] + 1 and l['x0'] < bb[0] - 2 and l['x1'] > bb[0] + 2:
+                cut = next((i for i, (c_, x) in enumerate(l['meta']) if x >= bb[0] - 1), None)
+                if cut:
+                    left, right = dict(l), dict(l)
+                    lt, rt = l['text'][:cut], l['text'][cut:]
+                    left['text'] = lt.rstrip(); left['meta'] = l['meta'][:len(left['text'])]
+                    rl = len(rt) - len(rt.lstrip())
+                    right['text'] = rt.strip(); right['meta'] = l['meta'][cut + rl:cut + rl + len(right['text'])]
+                    left['x1'] = bb[0] - 1
+                    right['x0'] = right['meta'][0][1] if right['meta'] else bb[0]
+                    parts = [p_ for p_ in (left, right) if p_['text']]
+                break
+        for l in parts:
+            l['box'] = None
+            for bi, b in enumerate(boxes):
+                if b['kind'] == 'box' and inside((l['x0'] + 1, l['cy']), b['bb'], 1) and inside((l['x1'] - 1, l['cy']), b['bb'], 1):
+                    l['box'] = '%d_%d' % (pno, bi); l['box_bb'] = b['bb']
+            keep.append(l)
     items = []
     for l in keep:
         l['type'] = 'line'
@@ -368,8 +385,12 @@ def assemble(items, qkey, code=False):
         if kind == 'box' and prev is not None and prev.get('box_bb'):
             margin = max(margin, prev['box_bb'][2] - 14)
         samecol = prev is not None and prev['page'] == it['page'] and prev['col'] == it['col']
+        def _code(x):
+            v = [ch for ch in x if ch.strip()]
+            return bool(v) and sum(1 for ch in v if ord(ch) < 128) / len(v) >= 0.7
         wrap = (prev is not None and blocks and blocks[-1]['t'] == kind and prev.get('box') == it.get('box')
                 and not it.get('hard') and not prev.get('hard')
+                and not (kind == 'box' and _code(prev['text']) and _code(t))
                 and prev['x1'] >= margin - 14 and not t.startswith(BULLET)
                 and (not samecol or abs(it['y0'] - prev['y1']) < 12))
         if wrap:
@@ -497,6 +518,31 @@ for q in questions:
             for ch, (c_, x) in zip(it['text'], it['meta']):
                 if ch in MARK:
                     markers.append((MARK.index(ch), it['page'], it['col'], x, it['cy'], first + i))
+    # boxes beside a choice marker belong to that choice
+    allmk = []
+    for it in body:
+        if it['type'] == 'line' and not it.get('box'):
+            for ch, (c_, x) in zip(it['text'], it['meta']):
+                if ch in MARK:
+                    allmk.append((MARK.index(ch), it['page'], it['col'], x, it['cy']))
+    box_owner = {}
+    for it in body:
+        if it['type'] == 'line' and it.get('box') and it['box'] not in box_owner:
+            bb = it['box_bb']
+            cand = [m for m in allmk if m[1] == it['page'] and m[2] == it['col'] and m[3] < bb[0] and bb[1] - 4 <= m[4] <= bb[3] + 4]
+            box_owner[it['box']] = cand[0][0] if len(cand) == 1 else None
+    boxed = {}
+    if any(v is not None for v in box_owner.values()):
+        rest = []
+        for it in body:
+            k = box_owner.get(it.get('box')) if it['type'] == 'line' else None
+            if k is not None:
+                boxed.setdefault(k, []).append(it)
+            else:
+                rest.append(it)
+        body = rest
+        if True:
+            first = next((i for i, it in enumerate(body) if it['type'] == 'line' and it['text'][:1] in MARK), first)
     figs_choice = []
     ci = None
     grid = None
@@ -574,6 +620,11 @@ for q in questions:
             stem.append(f)
         else:
             choices[pick[0]].append(f)
+    for k, its in boxed.items():
+        for it in its:
+            choices[k].append(it)
+            vis = [c for c, ch in zip(it['meta'], it['text']) if ch.strip()]
+            green[k] += sum(1 for c in vis if c[0] == GREEN); total[k] += len(vis)
     for k in range(4):
         choices[k].sort(key=lambda it: (it['page'], it['col'], it['cy']))
     stem.sort(key=lambda it: (it['page'], it['col'], it['cy']))
