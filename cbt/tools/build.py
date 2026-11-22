@@ -136,6 +136,46 @@ for name in stats['none']:
         still.append(name)
 stats['none'] = still
 
+# resolve wrap-join spacing markers
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import spacing, glob
+extra = [open(f).read() for f in glob.glob(os.path.join(OUT, 'raw_*.txt'))]
+for f in glob.glob(os.path.join(EXPL, '*.json')):
+    extra += list(json.load(open(f)).values())
+splog = spacing.resolve_data(data, extra)
+
+# typo / formatting corrections: [scope ('*' or 'set/n'), old, new] or [scope, '@choice'|'@stem', index, blocks]
+FIX = os.path.join(os.path.dirname(EXPL.rstrip('/')), 'fixes.json')
+fixcount = {}
+if os.path.exists(FIX):
+    for fx in json.load(open(FIX)):
+        scope = fx[0]
+        for sid, qs in data['q'].items():
+            for q in qs:
+                key = '%s/%d' % (sid, q['n'])
+                if scope != '*' and scope != key:
+                    continue
+                if fx[1] == '@choice':
+                    q['ch'][fx[2]] = fx[3]; fixcount[str(fx[:3])] = fixcount.get(str(fx[:3]), 0) + 1; continue
+                if fx[1] == '@stem':
+                    q['stem'] = fx[3]; fixcount[str(fx[:2])] = fixcount.get(str(fx[:2]), 0) + 1; continue
+                old, new = fx[1], fx[2]
+                for part in [q['stem'], q['e']] + q['ch']:
+                    for b in part:
+                        if 's' in b and old in b['s']:
+                            b['s'] = b['s'].replace(old, new)
+                            fixcount[old] = fixcount.get(old, 0) + 1
+                    if '\n' in new:   # split a paragraph into several blocks
+                        part[:] = [nb for b in part for nb in
+                                   ([dict(b, s=x) for x in b['s'].split('\n')] if b.get('t') == 'p' and '\n' in b.get('s', '') else [b])]
+                    part[:] = [b for b in part if not ('s' in b and not b['s'].strip())]
+    unused = [fx for fx in json.load(open(FIX)) if (str(fx[:3]) if fx[1] == '@choice' else str(fx[:2]) if fx[1] == '@stem' else fx[1]) not in fixcount]
+    print('fixes applied', sum(fixcount.values()), 'unused', unused)
+with open(os.path.join(OUT, 'spacing_log.tsv'), 'w') as fh:
+    for row in splog:
+        fh.write('\t'.join(str(x) for x in row) + '\n')
+print('spacing joins', len(splog), 'spaced', sum(1 for r in splog if r[3] == ' '))
+
 os.makedirs(os.path.join(APP, 'img'), exist_ok=True)
 for f in used_imgs:
     shutil.copy(os.path.join(OUT, f), os.path.join(APP, f))

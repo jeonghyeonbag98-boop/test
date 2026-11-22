@@ -391,12 +391,17 @@ def assemble(items, qkey, code=False):
         wrap = (prev is not None and blocks and blocks[-1]['t'] == kind and prev.get('box') == it.get('box')
                 and not it.get('hard') and not prev.get('hard')
                 and not (kind == 'box' and _code(prev['text']) and _code(t))
-                and prev['x1'] >= margin - 14 and not t.startswith(BULLET)
+                and prev['x1'] >= margin - 14
+                and (not t.startswith(BULLET)
+                     or (t[:1] in '[(<' or (t[:1] == '-' and t[1:2] not in (' ', '')))
+                     and not re.search(r'[.?!:]$', prev['text']))
                 and (not samecol or abs(it['y0'] - prev['y1']) < 12))
         if wrap:
             sep = ' ' if (prev.get('trailing_space') or re.search(r'[A-Za-z0-9,)\]]$', blocks[-1]['s'][-1:]) and re.match(r'^[A-Za-z0-9(]', t)) else ''
             if prev.get('trailing_space'):
                 sep = ' '
+            if sep == '':
+                sep = '\u2063'  # wrap join with unknown spacing; resolved later in build
             blocks[-1]['s'] += sep + t
         elif kind == 'box' and blocks and blocks[-1]['t'] == 'box' and blocks[-1].get('id') == it.get('box'):
             indent = max(0, int(round((it['x0'] - blocks[-1]['x0']) / 4.5)))
