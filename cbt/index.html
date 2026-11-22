@@ -247,10 +247,18 @@ function persist() {
   writeLocal();
   if (remote.on) { remote.dirty = true; clearTimeout(remote.timer); remote.timer = setTimeout(flushRemote, 1200); }
 }
+async function pullRemote() {
+  const snap = await withTimeout(remote.ref.get(), 8000);
+  if (!snap.exists) return false;
+  const before = JSON.stringify(S);
+  S = mergeState(S, JSON.parse(JSON.stringify(snap.data())));
+  writeLocal();
+  return JSON.stringify(S) !== before;
+}
 async function flushRemote() {
   if (!remote.on || remote.busy || !remote.dirty) return;
   remote.busy = true; remote.dirty = false;
-  try { await remote.ref.set(JSON.parse(JSON.stringify(S))); }
+  try { await pullRemote(); await remote.ref.set(JSON.parse(JSON.stringify(S))); }
   catch (e) {
     if (e && (e.code === 'invalid_argument' || e.code === 'revoked' || e.code === 'not_granted')) { remote.on = false; refreshSync(); }
     else remote.dirty = true;
@@ -258,7 +266,11 @@ async function flushRemote() {
   remote.busy = false;
   if (remote.dirty && remote.on) { clearTimeout(remote.timer); remote.timer = setTimeout(flushRemote, 3000); }
 }
-document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flushRemote(); });
+document.addEventListener('visibilitychange', async () => {
+  if (document.visibilityState === 'hidden') { flushRemote(); return; }
+  if (!remote.on || remote.busy) return;
+  try { if (await pullRemote() && !location.hash.startsWith('#q-')) route(); } catch (e) {}
+});
 function withTimeout(p, ms) { return Promise.race([p, new Promise((_, r) => setTimeout(() => r(new Error('timeout')), ms))]); }
 async function initRemote() {
   try {
