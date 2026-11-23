@@ -22,6 +22,9 @@ SETS = [
     ('t06', '종류·순서 묻는 문제 10', 'topic'),
 ]
 # answer-key corrections (source key error); value = 0-based choice index
+# optional subject map for topical sets: {"set/n": 1|2|3}, kept beside the explanations dir
+_SUBJ = os.path.join(os.path.dirname(EXPL.rstrip('/')), 'subjects.json')
+SUBJ = json.load(open(_SUBJ)) if os.path.exists(_SUBJ) else {}
 OVERRIDE = {('m2026_03', 6): 2}
 SEC = {1: '컴퓨터 일반', 2: '스프레드시트 일반', 3: '데이터베이스 일반'}
 
@@ -84,7 +87,7 @@ for sid, title, kind in SETS:
             e = []
         item = {'n': q['n'], 'stem': clean(q['stem']), 'ch': [clean(c) for c in q['choices']],
                 'a': OVERRIDE.get((sid, q['n']), q['ans']), 'e': e}
-        s = sec_of(sid, q)
+        s = sec_of(sid, q) or SUBJ.get('%s/%d' % (sid, q['n']))
         if s:
             item['s'] = s
         if q.get('cat'):
