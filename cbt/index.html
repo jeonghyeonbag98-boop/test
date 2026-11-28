@@ -21,6 +21,7 @@
   --ok-soft: #e2f4ea;
   --bad: #d23d32;
   --bad-soft: #fde7e4;
+  --memo: #fff6dc; --memo-ink: #7a4f00; --memo-rule: #f1d58f;
   --shadow: 0 1px 2px rgba(20, 28, 60, .06), 0 4px 14px rgba(20, 28, 60, .05);
   --font-body: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", system-ui, sans-serif;
   --font-num: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
@@ -31,6 +32,7 @@
     --paper: #10131b; --sheet: #191d28; --ink: #e9ecf4; --muted: #a3a9ba; --faint: #767d90; --rule: #2b3142;
     --accent: #7f9bff; --accent-ink: #0d1220; --accent-soft: #232c4a; --omr: #f07da0; --omr-soft: #3a2230;
     --ok: #4fcf93; --ok-soft: #173a2a; --bad: #ff7b6e; --bad-soft: #432220;
+    --memo: #2c2615; --memo-ink: #f2c866; --memo-rule: #4d4122;
     --shadow: 0 1px 2px rgba(0,0,0,.3); --img-filter: brightness(.92); color-scheme: dark;
   }
 }
@@ -38,6 +40,7 @@
   --paper: #10131b; --sheet: #191d28; --ink: #e9ecf4; --muted: #a3a9ba; --faint: #767d90; --rule: #2b3142;
   --accent: #7f9bff; --accent-ink: #0d1220; --accent-soft: #232c4a; --omr: #f07da0; --omr-soft: #3a2230;
   --ok: #4fcf93; --ok-soft: #173a2a; --bad: #ff7b6e; --bad-soft: #432220;
+  --memo: #2c2615; --memo-ink: #f2c866; --memo-rule: #4d4122;
   --shadow: 0 1px 2px rgba(0,0,0,.3); --img-filter: brightness(.92); color-scheme: dark;
 }
 * { box-sizing: border-box; }
@@ -170,6 +173,24 @@ img.inl { height: 1.1em; width: auto; vertical-align: -0.15em; margin: 0 2px; }
 .fb.bad { background: var(--bad-soft); color: var(--bad); }
 .fb strong { font-size: 1.15rem; }
 .fb span { color: var(--ink); font-size: .92rem; }
+.memo { background: var(--memo); border: 1px solid var(--memo-rule); border-radius: 14px; padding: 14px 16px; display: grid; gap: 8px; }
+.memo h3 { margin: 0; font-size: .85rem; color: var(--memo-ink); letter-spacing: .02em; }
+.memo h3 span { color: var(--ink); font-weight: 700; }
+.memo ul, .nt ul { margin: 0; padding-left: 1.1em; display: grid; gap: 6px; font-size: .92rem; line-height: 1.55; }
+.memo li::marker, .nt li::marker { color: var(--memo-ink); }
+.memo b, .nt b { color: var(--memo-ink); font-weight: 700; }
+.nt { border-top: 1px solid var(--rule); }
+.nt:first-child { border-top: 0; }
+.nt summary { list-style: none; cursor: pointer; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 10px; align-items: center; padding: 12px 14px; min-height: 52px; }
+.nt summary::-webkit-details-marker { display: none; }
+.nt summary .t { font-weight: 600; font-size: .95rem; }
+.nt-meta { grid-column: 1; font-size: .78rem; color: var(--muted); }
+.nt-meta .w { color: var(--bad); font-weight: 600; }
+.nt summary::after { content: '＋'; grid-row: 1 / span 2; grid-column: 2; color: var(--faint); font-size: 1rem; }
+.nt[open] summary::after { content: '－'; }
+.nt[open] summary { background: var(--memo); }
+.nt-body { padding: 4px 14px 14px; display: grid; gap: 12px; background: var(--memo); }
+.notes .chips { margin-bottom: 2px; }
 .expl { background: var(--sheet); border: 1px solid var(--rule); border-radius: 14px; padding: 14px 16px; display: grid; gap: 8px; font-size: .95rem; }
 .expl h3 { margin: 0; font-size: .85rem; color: var(--accent); letter-spacing: .04em; }
 .expl .box { background: var(--paper); }
@@ -333,6 +354,12 @@ function blocks(bs, inChoice) {
     return `<p>${rich(b.s)}</p>`;
   }).join('');
 }
+const md = s => esc(s).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
+function cardHTML(k, cls) {
+  const c = DATA.cards && DATA.cards[k]; if (!c) return '';
+  return `<ul>${c.b.map(x => `<li>${md(x)}</li>`).join('')}</ul>`;
+}
+function topicKeys(k) { return allKeys().filter(x => QMAP[x].q.k === k); }
 const key = (sid, n) => sid + ':' + n;
 function rec(k) { const i = k.lastIndexOf(':'); return ((S.st[k.slice(0, i)] || {})[k.slice(i + 1)]) || null; }
 const sessHash = id => id.replace(/_/g, '-');
@@ -352,6 +379,7 @@ function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.fl
 function sessTitle(id) {
   if (SETS[id]) return SETS[id].title;
   if (id === 'wrong') { const s = (S.ss.wrong || {}).sec; return s ? '오답노트 · ' + SECN[s] : '오답노트'; }
+  if (id === 'topic') { const k = (S.ss.topic || {}).k; return k && DATA.cards[k] ? '주제 · ' + DATA.cards[k].t : '주제별 문제'; }
   if (id === 'random') return '랜덤 모의고사';
   if (id === 'retry') return '틀린 문제 다시 풀기';
   return '문제 풀기';
@@ -449,6 +477,7 @@ function renderHome() {
       <div class="row-btns"><button class="btn" data-start="wrong">${wrongSec ? SECN[wrongSec] + ' ' : ''}오답 ${counts[wrongMode]}문제 풀기</button>${S.ss.wrong && S.ss.wrong.list && S.ss.wrong.list.length && Object.keys(S.ss.wrong.picks).length < S.ss.wrong.list.length ? `<button class="btn ghost" data-go="q-wrong">이어서</button>` : ''}</div>`
       : `<p>아직 틀린 문제가 없어요. 문제를 풀다 틀리면 여기에 모이고, 몇 번 틀렸는지도 함께 기록됩니다.</p>`}
     </section>
+    ${notesHTML()}
     <section class="group"><div class="group-head"><h2>회차별 기출문제</h2><span>60문항 · 과목별 20문항</span></div><div class="list">${exams.map(item).join('')}</div></section>
     <section class="group"><div class="group-head"><h2>랜덤 모의고사</h2><span>9회분에서 과목별 20문항</span></div>
       <div class="row-btns"><button class="btn soft" data-start="random">새 모의고사 60문항</button>${S.ss.random && S.ss.random.list && Object.keys(S.ss.random.picks).length < S.ss.random.list.length ? `<button class="btn ghost" data-go="q-random">이어서</button>` : ''}</div></section>
@@ -456,6 +485,29 @@ function renderHome() {
     <footer class="foot"><span class="sync"></span><span>출처: 시나공 컴퓨터활용능력 1급 필기 기출·유형 자료 (개인 학습용)</span></footer>
   </main>`;
   syncLabel(app.querySelector('.sync'));
+}
+let notesSec = 0;
+function notesHTML() {
+  if (!DATA.cards) return '';
+  if (!notesSec) notesSec = subjStats().weak || 1;
+  const byK = {};
+  for (const k of allKeys()) {
+    const q = QMAP[k].q; if (!q.k) continue;
+    const t = byK[q.k] = byK[q.k] || { n: 0, w: 0 }; t.n++;
+    const r = rec(k); if (r && r[1]) t.w++;
+  }
+  const pre = { 1: 'c1-', 2: 'x2-', 3: 'd3-' };
+  const ids = s => Object.keys(DATA.cards).filter(k => k.startsWith(pre[s]) && byK[k]);
+  const list = ids(notesSec).sort((a, b) => byK[b].w - byK[a].w || byK[b].n - byK[a].n);
+  return `<section class="group notes" aria-labelledby="nt-h"><div class="group-head"><h2 id="nt-h">핵심 암기 노트</h2><span>주제별로 꼭 외울 것</span></div>
+    <div class="chips" role="group" aria-label="과목 선택">${[1, 2, 3].map(s => `<button class="chip" data-nsec="${s}" aria-pressed="${notesSec === s}">${SECN[s]} <b>${ids(s).length}</b></button>`).join('')}</div>
+    <p class="note">내가 많이 틀린 주제가 위로 와요. 누르면 펼쳐지고, 그 주제 문제만 모아 풀 수 있어요.</p>
+    <div class="list">${list.map(k => {
+      const t = byK[k];
+      return `<details class="nt"><summary><span class="t">${esc(DATA.cards[k].t)}</span><span class="nt-meta">${t.n}문제${t.w ? ` · <span class="w">내 오답 ${t.w}</span>` : ''}</span></summary>
+        <div class="nt-body">${cardHTML(k)}<button class="btn soft" data-topic="${k}">이 주제 ${t.n}문제 풀기</button></div></details>`;
+    }).join('')}</div>
+  </section>`;
 }
 function snippet(q) {
   const b = q.stem.find(x => x.t === 'p' || x.t === 'box');
@@ -480,6 +532,8 @@ function startSession(id) {
     const list = wrongKeys(wrongMode, wrongSec);
     if (!list.length) return;
     S.ss.wrong = { list, pos: 0, picks: {}, u: Date.now(), sec: wrongSec };
+  } else if (id === 'topic') {
+    return;
   } else if (id === 'random') {
     const bySec = { 1: [], 2: [], 3: [] };
     for (const s of DATA.sets) if (s.kind === 'exam') for (const q of DATA.q[s.id]) if (bySec[q.s]) bySec[q.s].push(key(s.id, q.n));
@@ -537,7 +591,8 @@ function afterHTML(k, q, picked) {
     ? `<div class="fb ok" role="status"><strong>정답입니다</strong><span>${r[1] ? `이 문제는 지금까지 ${r[1]}번 틀렸어요.` : '한 번도 틀리지 않은 문제예요.'}</span></div>`
     : `<div class="fb bad" role="status"><strong>틀렸습니다 · ${r[1]}번째 오답</strong><span>정답은 ${MARK[q.a]}번입니다. 오답노트에 기록했어요.</span></div>`;
   const ex = q.e && q.e.length ? blocks(q.e) : '<p class="empty-expl">이 문제는 해설이 준비되지 않았어요.</p>';
-  return `${fb}<section class="expl" aria-label="풀이"><h3>풀이</h3>${ex}</section>`;
+  const memo = q.k && DATA.cards[q.k] ? `<section class="memo" aria-label="꼭 외울 것"><h3>꼭 외울 것 · <span>${esc(DATA.cards[q.k].t)}</span></h3>${cardHTML(q.k)}</section>` : '';
+  return `${fb}${memo}<section class="expl" aria-label="풀이"><h3>풀이</h3>${ex}</section>`;
 }
 function pick(i) {
   const id = curId, list = sessList(id), sess = ensureSess(id);
@@ -630,7 +685,7 @@ function renderResult(id) {
     <div class="btns">
       ${wrongs.length ? `<button class="btn" data-retry>이번에 틀린 ${wrongs.length}문제 다시 풀기</button>` : ''}
       <button class="btn ghost" data-review>문제 다시 보기</button>
-      ${isSetSession(id) || id === 'retry' || id === 'wrong' ? `<button class="btn ghost" data-restart>처음부터 다시 풀기</button>` : `<button class="btn ghost" data-start="random">새 랜덤 모의고사</button>`}
+      ${isSetSession(id) || id === 'retry' || id === 'wrong' || id === 'topic' ? `<button class="btn ghost" data-restart>처음부터 다시 풀기</button>` : `<button class="btn ghost" data-start="random">새 랜덤 모의고사</button>`}
       <button class="btn ghost" data-go="">처음 화면</button>
     </div>
   </main>`;
@@ -646,7 +701,7 @@ function renderResult(id) {
 function idFromHash(h) {
   const raw = h.replace(/-/g, '_');
   if (SETS[raw]) return raw;
-  if (['wrong', 'random', 'retry'].includes(h)) return h;
+  if (['wrong', 'random', 'retry', 'topic'].includes(h)) return h;
   return null;
 }
 function route() {
@@ -671,6 +726,13 @@ app.addEventListener('click', e => {
     location.hash = 'q-wrong'; return;
   }
   const wm = t.closest('[data-wmode]'); if (wm && !wm.disabled) { wrongMode = wm.dataset.wmode; renderHome(); return; }
+  const ns = t.closest('[data-nsec]'); if (ns) { notesSec = +ns.dataset.nsec; renderHome(); document.getElementById('nt-h')?.scrollIntoView({ block: 'start' }); return; }
+  const tp = t.closest('[data-topic]');
+  if (tp) {
+    const list = topicKeys(tp.dataset.topic); if (!list.length) return;
+    S.ss.topic = { list, pos: 0, picks: {}, u: Date.now(), k: tp.dataset.topic }; persist();
+    location.hash = 'q-topic'; return;
+  }
   const ws = t.closest('[data-wsec]'); if (ws && !ws.disabled) { const s = +ws.dataset.wsec; wrongSec = wrongSec === s ? 0 : s; renderHome(); return; }
   if (t.closest('[data-sheet]')) { openSheet(); return; }
 });

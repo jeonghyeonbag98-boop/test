@@ -25,6 +25,10 @@ SETS = [
 # optional subject map for topical sets: {"set/n": 1|2|3}, kept beside the explanations dir
 _SUBJ = os.path.join(os.path.dirname(EXPL.rstrip('/')), 'subjects.json')
 SUBJ = json.load(open(_SUBJ)) if os.path.exists(_SUBJ) else {}
+# optional study cards: topic_map.json {"set/n": card id} + cards.json {id: {t, b}}
+_DIR = os.path.dirname(EXPL.rstrip('/'))
+TMAP = json.load(open(os.path.join(_DIR, 'topic_map.json'))) if os.path.exists(os.path.join(_DIR, 'topic_map.json')) else {}
+CARDS = json.load(open(os.path.join(_DIR, 'cards.json'))) if os.path.exists(os.path.join(_DIR, 'cards.json')) else {}
 OVERRIDE = {('m2026_03', 6): 2}
 SEC = {1: '컴퓨터 일반', 2: '스프레드시트 일반', 3: '데이터베이스 일반'}
 
@@ -92,6 +96,9 @@ for sid, title, kind in SETS:
             item['s'] = s
         if q.get('cat'):
             item['c'] = q['cat']
+        k = TMAP.get('%s/%d' % (sid, q['n']))
+        if k in CARDS:
+            item['k'] = k
         qs.append(item)
         for part in [item['stem'], item['e']] + item['ch']:
             for b in part:
@@ -182,6 +189,8 @@ print('spacing joins', len(splog), 'spaced', sum(1 for r in splog if r[3] == ' '
 os.makedirs(os.path.join(APP, 'img'), exist_ok=True)
 for f in used_imgs:
     shutil.copy(os.path.join(OUT, f), os.path.join(APP, f))
+used_cards = {q['k'] for qs in data['q'].values() for q in qs if 'k' in q}
+data['cards'] = {k: v for k, v in CARDS.items() if k in used_cards}
 json.dump(data, open(os.path.join(APP, 'data.json'), 'w'), ensure_ascii=False, separators=(',', ':'))
 print('official', stats['official'], 'written', stats['written'], 'propagated', stats.get('propagated', 0), 'missing', len(stats['none']), 'imgs', len(used_imgs),
       'size', os.path.getsize(os.path.join(APP, 'data.json')))
